@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const auth = require('../middleware/auth');
-const { getAllUsers, createUser, deleteUser, findUserByEmail, getMetrics } = require('../data/queries');
+const { getAllUsers, createUser, deleteUser, findUserByEmail, findUserById, updateUserRole, getMetrics } = require('../data/queries');
 
 router.get('/metrics', auth(['admin']), async (req, res) => {
   res.json(await getMetrics());
@@ -26,6 +26,20 @@ router.post('/teachers', auth(['admin']), async (req, res) => {
   const user = await createUser({ name, email, password, role: 'teacher' });
   const { password: _, ...safe } = user;
   res.status(201).json(safe);
+});
+
+router.patch('/users/:id/role', auth(['admin']), async (req, res) => {
+  const { role } = req.body;
+  if (!['participant', 'teacher'].includes(role))
+    return res.status(400).json({ message: 'Papel inválido.' });
+
+  const user = await findUserById(req.params.id);
+  if (!user) return res.status(404).json({ message: 'Usuário não encontrado.' });
+  if (user.role === 'admin') return res.status(403).json({ message: 'Não é possível alterar o papel de um administrador.' });
+
+  const updated = await updateUserRole(req.params.id, role);
+  const { password: _, ...safe } = updated;
+  res.json(safe);
 });
 
 router.delete('/teachers/:id', auth(['admin']), async (req, res) => {

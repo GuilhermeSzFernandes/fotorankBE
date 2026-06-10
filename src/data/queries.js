@@ -59,6 +59,14 @@ async function deleteUser(id) {
   return rowCount > 0;
 }
 
+async function updateUserRole(userId, role) {
+  const { rows } = await pool.query(
+    'UPDATE users SET role = $1 WHERE id = $2 RETURNING *',
+    [role, userId]
+  );
+  return mapUser(rows[0]);
+}
+
 async function updateUserProfile(userId, { name }) {
   const { rows } = await pool.query(
     'UPDATE users SET name = $1 WHERE id = $2 RETURNING *',
@@ -126,7 +134,9 @@ async function consumeResetToken(token, newPassword) {
 
 async function getPhotosByUser(userId) {
   const { rows } = await pool.query(
-    `SELECT p.*, COUNT(g.id)::int AS grade_count
+    `SELECT p.*,
+            COUNT(g.id)::int            AS grade_count,
+            ROUND(AVG(g.score)::numeric, 1) AS avg_score
      FROM photos p
      LEFT JOIN grades g ON g.photo_id = p.id
      WHERE p.user_id = $1
@@ -134,7 +144,11 @@ async function getPhotosByUser(userId) {
      ORDER BY p.created_at ASC`,
     [userId]
   );
-  return rows.map((r) => ({ ...mapPhoto(r), gradeCount: r.grade_count }));
+  return rows.map((r) => ({
+    ...mapPhoto(r),
+    gradeCount: r.grade_count,
+    avgScore:   r.avg_score !== null ? parseFloat(r.avg_score) : null,
+  }));
 }
 
 async function getAllPhotos() {
@@ -273,6 +287,7 @@ module.exports = {
   findUserById,
   createUser,
   deleteUser,
+  updateUserRole,
   updateUserProfile,
   updateUserAvatar,
   changeUserPassword,
