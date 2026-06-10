@@ -135,8 +135,15 @@ async function consumeResetToken(token, newPassword) {
 async function getPhotosByUser(userId) {
   const { rows } = await pool.query(
     `SELECT p.*,
-            COUNT(g.id)::int            AS grade_count,
-            ROUND(AVG(g.score)::numeric, 1) AS avg_score
+            COUNT(g.id)::int                AS grade_count,
+            ROUND(AVG(g.score)::numeric, 1) AS avg_score,
+            COALESCE(
+              json_agg(
+                jsonb_build_object('score', g.score, 'comment', g.comment)
+                ORDER BY g.created_at ASC
+              ) FILTER (WHERE g.id IS NOT NULL),
+              '[]'
+            ) AS feedbacks
      FROM photos p
      LEFT JOIN grades g ON g.photo_id = p.id
      WHERE p.user_id = $1
@@ -148,6 +155,7 @@ async function getPhotosByUser(userId) {
     ...mapPhoto(r),
     gradeCount: r.grade_count,
     avgScore:   r.avg_score !== null ? parseFloat(r.avg_score) : null,
+    feedbacks:  r.feedbacks,
   }));
 }
 

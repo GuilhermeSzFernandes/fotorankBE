@@ -27,6 +27,7 @@ app.use('/api/grades',  require('./routes/grades'));
 app.use('/api/ranking', require('./routes/ranking'));
 app.use('/api/admin',   require('./routes/admin'));
 app.use('/api/profile', require('./routes/profile'));
+app.use('/api/users',   require('./routes/users'));
 
 app.use((err, req, res, next) => {
   console.error(err.message);
