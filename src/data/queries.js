@@ -188,6 +188,14 @@ async function deletePhoto(id, userId) {
 
 // ── Grades ────────────────────────────────────────────────────────────────────
 
+async function deleteGrade(teacherId, photoId) {
+  const { rowCount } = await pool.query(
+    'DELETE FROM grades WHERE teacher_id = $1 AND photo_id = $2',
+    [teacherId, photoId]
+  );
+  return rowCount > 0;
+}
+
 async function createOrUpdateGrade({ teacherId, photoId, score, comment }) {
   const { rows } = await pool.query(
     `INSERT INTO grades (teacher_id, photo_id, score, comment)
@@ -309,6 +317,7 @@ module.exports = {
   findPhotoById,
   createPhoto,
   deletePhoto,
+  deleteGrade,
   createOrUpdateGrade,
   getPhotosWithGrades,
   getRanking,

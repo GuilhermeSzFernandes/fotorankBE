@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const auth = require('../middleware/auth');
-const { getPhotosWithGrades, createOrUpdateGrade, findPhotoById } = require('../data/queries');
+const { getPhotosWithGrades, createOrUpdateGrade, deleteGrade, findPhotoById } = require('../data/queries');
 
 router.get('/', auth(['teacher', 'admin']), async (req, res) => {
   res.json(await getPhotosWithGrades(req.user.id));
@@ -20,6 +20,12 @@ router.post('/', auth(['teacher']), async (req, res) => {
 
   const grade = await createOrUpdateGrade({ teacherId: req.user.id, photoId, score: Number(score), comment });
   res.status(201).json(grade);
+});
+
+router.delete('/:photoId', auth(['teacher']), async (req, res) => {
+  const removed = await deleteGrade(req.user.id, req.params.photoId);
+  if (!removed) return res.status(404).json({ message: 'Avaliação não encontrada.' });
+  res.json({ message: 'Avaliação removida.' });
 });
 
 module.exports = router;
