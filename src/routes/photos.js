@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const auth = require('../middleware/auth');
-const { getPhotosByUser, createPhoto, photos } = require('../data/mock');
+const { getPhotosByUser, createPhoto, getAllPhotos } = require('../data/queries');
 
 const USE_S3 = process.env.USE_S3 === 'true';
 
@@ -27,15 +27,12 @@ const upload = USE_S3
     });
 
 router.post('/', auth(['participant']), upload.single('photo'), async (req, res) => {
-  if (getPhotosByUser(req.user.id).length >= 3) {
+  if ((await getPhotosByUser(req.user.id)).length >= 3)
     return res.status(400).json({ message: 'Limite de 3 fotos atingido.' });
-  }
-  if (!req.file) {
+  if (!req.file)
     return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
-  }
 
   let filename, url;
-
   if (USE_S3) {
     const { uploadToS3 } = require('../lib/s3');
     const result = await uploadToS3(req.file.buffer, req.file.originalname, 'photos');
@@ -46,16 +43,16 @@ router.post('/', auth(['participant']), upload.single('photo'), async (req, res)
     url = `/uploads/${filename}`;
   }
 
-  const photo = createPhoto({ userId: req.user.id, filename, originalName: req.file.originalname, url });
+  const photo = await createPhoto({ userId: req.user.id, filename, originalName: req.file.originalname, url });
   res.status(201).json(photo);
 });
 
-router.get('/my', auth(['participant']), (req, res) => {
-  res.json(getPhotosByUser(req.user.id));
+router.get('/my', auth(['participant']), async (req, res) => {
+  res.json(await getPhotosByUser(req.user.id));
 });
 
-router.get('/', auth(['teacher', 'admin']), (req, res) => {
-  res.json(photos);
+router.get('/', auth(['teacher', 'admin']), async (req, res) => {
+  res.json(await getAllPhotos());
 });
 
 module.exports = router;

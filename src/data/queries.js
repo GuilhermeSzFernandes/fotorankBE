@@ -1,0 +1,278 @@
+const { pool } = require('../lib/db');
+const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function mapUser(row) {
+  if (!row) return null;
+  return {
+    id:          row.id,
+    name:        row.name,
+    email:       row.email,
+    password:    row.password_hash,
+    role:        row.role,
+    avatar:      row.avatar,
+    etec:        row.etec,
+    studentType: row.student_type,
+    cpf:         row.cpf,
+    createdAt:   row.created_at,
+  };
+}
+
+function mapPhoto(row) {
+  if (!row) return null;
+  return {
+    id:           row.id,
+    userId:       row.user_id,
+    filename:     row.filename,
+    originalName: row.original_name,
+    url:          row.url,
+    createdAt:    row.created_at,
+  };
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+
+async function findUserByEmail(email) {
+  const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+  return mapUser(rows[0]);
+}
+
+async function findUserById(id) {
+  const { rows } = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+  return mapUser(rows[0]);
+}
+
+async function createUser({ name, email, password, role = 'participant', etec = null, studentType = null, cpf = null }) {
+  const hash = await bcrypt.hash(password, 10);
+  const { rows } = await pool.query(
+    `INSERT INTO users (name, email, password_hash, role, etec, student_type, cpf)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [name, email, hash, role, etec, studentType, cpf]
+  );
+  return mapUser(rows[0]);
+}
+
+async function deleteUser(id) {
+  const { rowCount } = await pool.query('DELETE FROM users WHERE id = $1', [id]);
+  return rowCount > 0;
+}
+
+async function updateUserProfile(userId, { name }) {
+  const { rows } = await pool.query(
+    'UPDATE users SET name = $1 WHERE id = $2 RETURNING *',
+    [name, userId]
+  );
+  return mapUser(rows[0]);
+}
+
+async function updateUserAvatar(userId, avatarUrl) {
+  const { rowCount } = await pool.query(
+    'UPDATE users SET avatar = $1 WHERE id = $2',
+    [avatarUrl, userId]
+  );
+  return rowCount > 0;
+}
+
+async function changeUserPassword(userId, newPassword) {
+  const hash = await bcrypt.hash(newPassword, 10);
+  const { rowCount } = await pool.query(
+    'UPDATE users SET password_hash = $1 WHERE id = $2',
+    [hash, userId]
+  );
+  return rowCount > 0;
+}
+
+async function getAllUsers() {
+  const { rows } = await pool.query('SELECT * FROM users ORDER BY created_at ASC');
+  return rows.map(mapUser);
+}
+
+// ── Password reset ────────────────────────────────────────────────────────────
+
+async function createResetToken(email) {
+  const user = await findUserByEmail(email);
+  if (!user) return null;
+  const token = uuidv4().replace(/-/g, '');
+  const expiresAt = new Date(Date.now() + 3_600_000);
+  await pool.query('DELETE FROM password_reset_tokens WHERE email = $1', [email]);
+  await pool.query(
+    'INSERT INTO password_reset_tokens (token, email, expires_at) VALUES ($1, $2, $3)',
+    [token, email, expiresAt]
+  );
+  return token;
+}
+
+async function validateResetToken(token) {
+  const { rows } = await pool.query(
+    'SELECT * FROM password_reset_tokens WHERE token = $1 AND expires_at > NOW()',
+    [token]
+  );
+  return rows[0]?.email ?? null;
+}
+
+async function consumeResetToken(token, newPassword) {
+  const email = await validateResetToken(token);
+  if (!email) return false;
+  const user = await findUserByEmail(email);
+  if (!user) return false;
+  await changeUserPassword(user.id, newPassword);
+  await pool.query('DELETE FROM password_reset_tokens WHERE token = $1', [token]);
+  return true;
+}
+
+// ── Photos ────────────────────────────────────────────────────────────────────
+
+async function getPhotosByUser(userId) {
+  const { rows } = await pool.query(
+    'SELECT * FROM photos WHERE user_id = $1 ORDER BY created_at ASC',
+    [userId]
+  );
+  return rows.map(mapPhoto);
+}
+
+async function getAllPhotos() {
+  const { rows } = await pool.query('SELECT * FROM photos ORDER BY created_at ASC');
+  return rows.map(mapPhoto);
+}
+
+async function findPhotoById(id) {
+  const { rows } = await pool.query('SELECT * FROM photos WHERE id = $1', [id]);
+  return mapPhoto(rows[0]);
+}
+
+async function createPhoto({ userId, filename, originalName, url }) {
+  const { rows } = await pool.query(
+    `INSERT INTO photos (user_id, filename, original_name, url)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [userId, filename, originalName, url]
+  );
+  return mapPhoto(rows[0]);
+}
+
+// ── Grades ────────────────────────────────────────────────────────────────────
+
+async function createOrUpdateGrade({ teacherId, photoId, score, comment }) {
+  const { rows } = await pool.query(
+    `INSERT INTO grades (teacher_id, photo_id, score, comment)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (teacher_id, photo_id)
+     DO UPDATE SET score = EXCLUDED.score, comment = EXCLUDED.comment, updated_at = NOW()
+     RETURNING *`,
+    [teacherId, photoId, score, comment || '']
+  );
+  const r = rows[0];
+  return {
+    id:        r.id,
+    teacherId: r.teacher_id,
+    photoId:   r.photo_id,
+    score:     parseFloat(r.score),
+    comment:   r.comment,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+async function getPhotosWithGrades(teacherId) {
+  const { rows } = await pool.query(
+    `SELECT
+       p.id, p.user_id AS "userId", p.filename, p.original_name AS "originalName",
+       p.url, p.created_at AS "createdAt",
+       u.name AS "ownerName", u.avatar AS "ownerAvatar",
+       g.id AS "gradeId", g.score, g.comment, g.created_at AS "gradeCreatedAt"
+     FROM photos p
+     JOIN users u ON u.id = p.user_id
+     LEFT JOIN grades g ON g.photo_id = p.id AND g.teacher_id = $1
+     ORDER BY p.created_at ASC`,
+    [teacherId]
+  );
+  return rows.map((r) => ({
+    id:           r.id,
+    userId:       r.userId,
+    filename:     r.filename,
+    originalName: r.originalName,
+    url:          r.url,
+    createdAt:    r.createdAt,
+    ownerName:    r.ownerName,
+    ownerAvatar:  r.ownerAvatar,
+    myGrade:      r.gradeId
+      ? { id: r.gradeId, teacherId, photoId: r.id, score: parseFloat(r.score), comment: r.comment, createdAt: r.gradeCreatedAt }
+      : null,
+  }));
+}
+
+// ── Ranking ───────────────────────────────────────────────────────────────────
+
+async function getRanking() {
+  const { rows } = await pool.query(
+    `SELECT
+       u.id AS "userId", u.name, u.avatar,
+       COUNT(DISTINCT p.id)::int                                              AS "photoCount",
+       COUNT(g.id)::int                                                       AS "gradeCount",
+       ROUND(AVG(g.score)::numeric, 2)                                        AS "avgScore",
+       COALESCE(
+         json_agg(
+           DISTINCT jsonb_build_object(
+             'id', p.id, 'url', p.url,
+             'originalName', p.original_name, 'createdAt', p.created_at
+           )
+         ) FILTER (WHERE p.id IS NOT NULL),
+         '[]'
+       )                                                                      AS photos
+     FROM users u
+     LEFT JOIN photos p ON p.user_id = u.id
+     LEFT JOIN grades g ON g.photo_id = p.id
+     WHERE u.role = 'participant'
+     GROUP BY u.id, u.name, u.avatar
+     ORDER BY "avgScore" DESC NULLS LAST`
+  );
+  return rows.map((r) => ({
+    ...r,
+    avgScore: r.avgScore !== null ? parseFloat(r.avgScore) : null,
+  }));
+}
+
+// ── Metrics ───────────────────────────────────────────────────────────────────
+
+async function getMetrics() {
+  const { rows } = await pool.query(
+    `SELECT
+       (SELECT COUNT(*)::int FROM users WHERE role = 'participant')        AS "totalParticipants",
+       (SELECT COUNT(*)::int FROM users WHERE role = 'teacher')            AS "totalTeachers",
+       (SELECT COUNT(*)::int FROM photos)                                  AS "totalPhotos",
+       (SELECT COUNT(*)::int FROM grades)                                  AS "totalGrades",
+       (SELECT COUNT(DISTINCT photo_id)::int FROM grades)                  AS "gradedPhotos",
+       (SELECT (COUNT(*)::int - COUNT(DISTINCT photo_id)::int) FROM grades
+          CROSS JOIN (SELECT COUNT(*)::int AS total FROM photos) t)        AS "ungradedPhotos",
+       (SELECT ROUND(AVG(score)::numeric, 2) FROM grades)                  AS "avgGrade"`
+  );
+  const m = rows[0];
+  return {
+    ...m,
+    ungradedPhotos: m.totalPhotos - m.gradedPhotos,
+    avgGrade: m.avgGrade !== null ? parseFloat(m.avgGrade) : null,
+  };
+}
+
+module.exports = {
+  findUserByEmail,
+  findUserById,
+  createUser,
+  deleteUser,
+  updateUserProfile,
+  updateUserAvatar,
+  changeUserPassword,
+  getAllUsers,
+  createResetToken,
+  validateResetToken,
+  consumeResetToken,
+  getPhotosByUser,
+  getAllPhotos,
+  findPhotoById,
+  createPhoto,
+  createOrUpdateGrade,
+  getPhotosWithGrades,
+  getRanking,
+  getMetrics,
+};

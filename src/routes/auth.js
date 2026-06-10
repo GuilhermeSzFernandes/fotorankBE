@@ -1,92 +1,100 @@
 const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const authMiddleware = require('../middleware/auth');
 const {
   findUserByEmail,
+  findUserById,
   createUser,
   createResetToken,
   consumeResetToken,
   validateResetToken,
-} = require('../data/mock');
+} = require('../data/queries');
 
-router.post('/register', (req, res) => {
-  const { name, email, password, etec, studentType, rm } = req.body;
-  if (!name || !email || !password)
-    return res.status(400).json({ message: 'Preencha todos os campos.' });
-  if (password.length < 6)
-    return res.status(400).json({ message: 'Senha deve ter ao menos 6 caracteres.' });
-  if (findUserByEmail(email))
-    return res.status(409).json({ message: 'E-mail já cadastrado.' });
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
-  const user = createUser({ name, email, password, role: 'participant', etec: etec || null, studentType: studentType || null, rm: rm || null });
-  const token = jwt.sign(
+function signToken(user) {
+  return jwt.sign(
     { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
     process.env.JWT_SECRET,
     { expiresIn: '7d' }
   );
-  res.status(201).json({
-    token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
-  });
+}
+
+router.post('/register', async (req, res) => {
+  try {
+    const { name, email, password, etec, studentType, cpf } = req.body;
+    if (!name || !email || !password || !cpf)
+      return res.status(400).json({ message: 'Preencha todos os campos obrigatórios.' });
+    if (password.length < 6)
+      return res.status(400).json({ message: 'Senha deve ter ao menos 6 caracteres.' });
+    if (await findUserByEmail(email))
+      return res.status(409).json({ message: 'E-mail já cadastrado.' });
+
+    const user = await createUser({ name, email, password, role: 'participant', etec: etec || null, studentType: studentType || null, cpf });
+    const token = signToken(user);
+    const safeUser = { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar };
+    res.cookie('token', token, COOKIE_OPTIONS).status(201).json({ user: safeUser });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ message: 'CPF ou e-mail já cadastrado.' });
+    throw err;
+  }
 });
 
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password)
     return res.status(400).json({ message: 'Preencha todos os campos.' });
 
-  const user = findUserByEmail(email);
+  const user = await findUserByEmail(email);
   if (!user || !bcrypt.compareSync(password, user.password))
     return res.status(401).json({ message: 'E-mail ou senha incorretos.' });
 
-  const token = jwt.sign(
-    { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
-    process.env.JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-  res.json({
-    token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar },
-  });
+  const token = signToken(user);
+  const safeUser = { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar };
+  res.cookie('token', token, COOKIE_OPTIONS).json({ user: safeUser });
 });
 
-router.post('/forgot-password', (req, res) => {
+router.post('/logout', (req, res) => {
+  res.clearCookie('token', { ...COOKIE_OPTIONS, maxAge: 0 }).json({ message: 'Logout realizado.' });
+});
+
+router.get('/me', authMiddleware(), async (req, res) => {
+  const user = await findUserById(req.user.id);
+  if (!user) return res.status(401).json({ message: 'Usuário não encontrado.' });
+  const { password, ...safe } = user;
+  res.json(safe);
+});
+
+router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
-  if (!email)
-    return res.status(400).json({ message: 'E-mail é obrigatório.' });
+  if (!email) return res.status(400).json({ message: 'E-mail é obrigatório.' });
 
-  const token = createResetToken(email);
-  if (!token) {
-    // Always respond 200 to avoid enumeration
-    return res.json({ message: 'Se este e-mail existir, um link foi gerado.' });
-  }
+  const token = await createResetToken(email);
+  if (!token) return res.json({ message: 'Se este e-mail existir, um link foi gerado.' });
 
-  // Mock: return the token directly (production would send email)
-  res.json({
-    message: 'Link de recuperação gerado.',
-    resetToken: token,
-    resetUrl: `/reset-password?token=${token}`,
-  });
+  res.json({ message: 'Link de recuperação gerado.', resetToken: token, resetUrl: `/reset-password?token=${token}` });
 });
 
-router.get('/reset-password/validate', (req, res) => {
+router.get('/reset-password/validate', async (req, res) => {
   const { token } = req.query;
-  const email = validateResetToken(token);
+  const email = await validateResetToken(token);
   if (!email) return res.status(400).json({ valid: false });
   res.json({ valid: true, email });
 });
 
-router.post('/reset-password', (req, res) => {
+router.post('/reset-password', async (req, res) => {
   const { token, password } = req.body;
-  if (!token || !password)
-    return res.status(400).json({ message: 'Dados incompletos.' });
-  if (password.length < 6)
-    return res.status(400).json({ message: 'Senha deve ter ao menos 6 caracteres.' });
+  if (!token || !password) return res.status(400).json({ message: 'Dados incompletos.' });
+  if (password.length < 6) return res.status(400).json({ message: 'Senha deve ter ao menos 6 caracteres.' });
 
-  const ok = consumeResetToken(token, password);
-  if (!ok)
-    return res.status(400).json({ message: 'Token inválido ou expirado.' });
-
+  const ok = await consumeResetToken(token, password);
+  if (!ok) return res.status(400).json({ message: 'Token inválido ou expirado.' });
   res.json({ message: 'Senha redefinida com sucesso.' });
 });
 

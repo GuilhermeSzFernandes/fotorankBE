@@ -1,12 +1,24 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const path = require('path');
+const { initDb } = require('./lib/db');
 
 const app = express();
 
-app.use(cors());
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',');
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error('CORS não permitido para esta origem.'));
+  },
+  credentials: true,
+}));
+
 app.use(express.json());
+app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 app.use('/api/auth',    require('./routes/auth'));
@@ -22,4 +34,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Backend rodando em http://localhost:${PORT}`));
+
+initDb()
+  .then(() => app.listen(PORT, () => console.log(`Backend rodando em http://localhost:${PORT}`)))
+  .catch((err) => { console.error('Falha ao inicializar DB:', err.message); process.exit(1); });
