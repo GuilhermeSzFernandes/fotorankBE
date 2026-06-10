@@ -3,7 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const auth = require('../middleware/auth');
-const { getPhotosByUser, createPhoto, getAllPhotos } = require('../data/queries');
+const { getPhotosByUser, createPhoto, getAllPhotos, deletePhoto, findPhotoById } = require('../data/queries');
 
 const USE_S3 = process.env.USE_S3 === 'true';
 
@@ -16,13 +16,13 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = USE_S3
-  ? multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter })
+  ? multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 }, fileFilter })
   : multer({
       storage: multer.diskStorage({
         destination: path.join(__dirname, '../../uploads'),
         filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`),
       }),
-      limits: { fileSize: 10 * 1024 * 1024 },
+      limits: { fileSize: 25 * 1024 * 1024 },
       fileFilter,
     });
 
@@ -49,6 +49,30 @@ router.post('/', auth(['participant']), upload.single('photo'), async (req, res)
 
 router.get('/my', auth(['participant']), async (req, res) => {
   res.json(await getPhotosByUser(req.user.id));
+});
+
+router.delete('/:id', auth(['participant']), async (req, res) => {
+  const existing = await findPhotoById(req.params.id);
+  if (!existing || existing.userId !== req.user.id)
+    return res.status(404).json({ message: 'Foto não encontrada.' });
+
+  const { pool } = require('../lib/db');
+  const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM grades WHERE photo_id = $1', [req.params.id]);
+  if (rows[0].n > 0)
+    return res.status(403).json({ message: 'Esta foto já foi avaliada e não pode ser removida.' });
+
+  const photo = await deletePhoto(req.params.id, req.user.id);
+
+  if (USE_S3) {
+    const { deleteFromS3 } = require('../lib/s3');
+    await deleteFromS3(photo.filename).catch(() => {});
+  } else {
+    const fs = require('fs');
+    const filePath = require('path').join(__dirname, '../../uploads', photo.filename);
+    fs.unlink(filePath, () => {});
+  }
+
+  res.json({ message: 'Foto removida.' });
 });
 
 router.get('/', auth(['teacher', 'admin']), async (req, res) => {

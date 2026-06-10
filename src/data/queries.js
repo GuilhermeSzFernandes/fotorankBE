@@ -126,10 +126,15 @@ async function consumeResetToken(token, newPassword) {
 
 async function getPhotosByUser(userId) {
   const { rows } = await pool.query(
-    'SELECT * FROM photos WHERE user_id = $1 ORDER BY created_at ASC',
+    `SELECT p.*, COUNT(g.id)::int AS grade_count
+     FROM photos p
+     LEFT JOIN grades g ON g.photo_id = p.id
+     WHERE p.user_id = $1
+     GROUP BY p.id
+     ORDER BY p.created_at ASC`,
     [userId]
   );
-  return rows.map(mapPhoto);
+  return rows.map((r) => ({ ...mapPhoto(r), gradeCount: r.grade_count }));
 }
 
 async function getAllPhotos() {
@@ -147,6 +152,14 @@ async function createPhoto({ userId, filename, originalName, url }) {
     `INSERT INTO photos (user_id, filename, original_name, url)
      VALUES ($1, $2, $3, $4) RETURNING *`,
     [userId, filename, originalName, url]
+  );
+  return mapPhoto(rows[0]);
+}
+
+async function deletePhoto(id, userId) {
+  const { rows } = await pool.query(
+    'DELETE FROM photos WHERE id = $1 AND user_id = $2 RETURNING *',
+    [id, userId]
   );
   return mapPhoto(rows[0]);
 }
@@ -271,6 +284,7 @@ module.exports = {
   getAllPhotos,
   findPhotoById,
   createPhoto,
+  deletePhoto,
   createOrUpdateGrade,
   getPhotosWithGrades,
   getRanking,
