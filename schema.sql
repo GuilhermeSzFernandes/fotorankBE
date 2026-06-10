@@ -45,3 +45,16 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
   email         VARCHAR(255)  NOT NULL,
   expires_at    TIMESTAMPTZ   NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  event       TEXT        NOT NULL,
+  actor_id    UUID        REFERENCES users(id) ON DELETE SET NULL,
+  photo_id    UUID        REFERENCES photos(id) ON DELETE SET NULL,
+  metadata    JSONB       NOT NULL DEFAULT '{}',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS audit_logs_photo_id_idx ON audit_logs(photo_id);
+CREATE INDEX IF NOT EXISTS audit_logs_actor_id_idx ON audit_logs(actor_id);
+CREATE INDEX IF NOT EXISTS audit_logs_event_idx    ON audit_logs(event);

@@ -4,6 +4,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const auth = require('../middleware/auth');
 const { getPhotosByUser, createPhoto, getAllPhotos, deletePhoto, findPhotoById } = require('../data/queries');
+const { audit } = require('../lib/audit');
 
 const USE_S3 = process.env.USE_S3 === 'true';
 
@@ -64,6 +65,7 @@ router.post('/', auth(['participant']), upload.single('photo'), async (req, res)
   }
 
   const photo = await createPhoto({ userId: req.user.id, filename, originalName: req.file.originalname, url });
+  await audit('photo.upload', { actorId: req.user.id, photoId: photo.id, metadata: { originalName: req.file.originalname, url } });
   res.status(201).json(photo);
 });
 
@@ -92,6 +94,7 @@ router.delete('/:id', auth(['participant']), async (req, res) => {
     fs.unlink(filePath, () => {});
   }
 
+  await audit('photo.delete', { actorId: req.user.id, photoId: photo.id, metadata: { originalName: photo.originalName } });
   res.json({ message: 'Foto removida.' });
 });
 

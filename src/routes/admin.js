@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const auth = require('../middleware/auth');
 const { getAllUsers, createUser, deleteUser, findUserByEmail, findUserById, updateUserRole, getMetrics } = require('../data/queries');
+const { audit } = require('../lib/audit');
 
 router.get('/metrics', auth(['admin']), async (req, res) => {
   res.json(await getMetrics());
@@ -9,6 +10,22 @@ router.get('/metrics', auth(['admin']), async (req, res) => {
 router.get('/users', auth(['admin']), async (req, res) => {
   const users = await getAllUsers();
   res.json(users.map(({ password, ...u }) => u));
+});
+
+router.get('/photos', auth(['admin']), async (req, res) => {
+  const { pool } = require('../lib/db');
+  const { rows } = await pool.query(
+    `SELECT p.id, p.original_name AS "originalName", p.url, p.created_at AS "createdAt",
+            u.name AS "ownerName", u.id AS "ownerId",
+            COUNT(g.id)::int AS "gradeCount",
+            ROUND(AVG(g.score)::numeric, 1) AS "avgScore"
+     FROM photos p
+     JOIN users u ON u.id = p.user_id
+     LEFT JOIN grades g ON g.photo_id = p.id
+     GROUP BY p.id, u.name, u.id
+     ORDER BY p.created_at DESC`
+  );
+  res.json(rows.map((r) => ({ ...r, avgScore: r.avgScore !== null ? parseFloat(r.avgScore) : null })));
 });
 
 router.get('/teachers', auth(['admin']), async (req, res) => {
@@ -38,6 +55,10 @@ router.patch('/users/:id/role', auth(['admin']), async (req, res) => {
   if (user.role === 'admin') return res.status(403).json({ message: 'Não é possível alterar o papel de um administrador.' });
 
   const updated = await updateUserRole(req.params.id, role);
+  await audit('user.role_change', {
+    actorId: req.user.id,
+    metadata: { targetUserId: req.params.id, fromRole: user.role, toRole: role },
+  });
   const { password: _, ...safe } = updated;
   res.json(safe);
 });
