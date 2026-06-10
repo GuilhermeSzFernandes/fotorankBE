@@ -2,7 +2,10 @@
 -- FotoRank – Schema PostgreSQL
 -- ─────────────────────────────────────────────────────────────
 
-CREATE TYPE user_role AS ENUM ('admin', 'teacher', 'participant');
+DO $$ BEGIN
+  CREATE TYPE user_role AS ENUM ('admin', 'teacher', 'participant');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS users (
   id            UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
