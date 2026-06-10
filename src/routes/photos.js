@@ -15,14 +15,20 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+const { imageSize } = require('image-size');
+
+const MAX_BYTES = 30 * 1024 * 1024;
+const MIN_W = 800;
+const MIN_H = 600;
+
 const upload = USE_S3
-  ? multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 }, fileFilter })
+  ? multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_BYTES }, fileFilter })
   : multer({
       storage: multer.diskStorage({
         destination: path.join(__dirname, '../../uploads'),
         filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`),
       }),
-      limits: { fileSize: 25 * 1024 * 1024 },
+      limits: { fileSize: MAX_BYTES },
       fileFilter,
     });
 
@@ -31,6 +37,20 @@ router.post('/', auth(['participant']), upload.single('photo'), async (req, res)
     return res.status(400).json({ message: 'Limite de 3 fotos atingido.' });
   if (!req.file)
     return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
+
+  try {
+    const source = USE_S3 ? req.file.buffer : require('fs').readFileSync(req.file.path);
+    const { width, height } = imageSize(source);
+    if (width < MIN_W || height < MIN_H) {
+      if (!USE_S3) require('fs').unlink(req.file.path, () => {});
+      return res.status(400).json({
+        message: `Resolução mínima é ${MIN_W}×${MIN_H} px. Sua foto tem ${width}×${height} px.`,
+      });
+    }
+  } catch {
+    if (!USE_S3 && req.file?.path) require('fs').unlink(req.file.path, () => {});
+    return res.status(400).json({ message: 'Não foi possível ler as dimensões da imagem.' });
+  }
 
   let filename, url;
   if (USE_S3) {
