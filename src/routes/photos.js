@@ -5,43 +5,48 @@ const { v4: uuidv4 } = require('uuid');
 const auth = require('../middleware/auth');
 const { getPhotosByUser, createPhoto, photos } = require('../data/mock');
 
-const storage = multer.diskStorage({
-  destination: path.join(__dirname, '../../uploads'),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
-  },
-});
+const USE_S3 = process.env.USE_S3 === 'true';
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|webp/;
-    if (allowed.test(path.extname(file.originalname).toLowerCase())) {
-      cb(null, true);
-    } else {
-      cb(new Error('Apenas imagens JPEG, PNG ou WebP são aceitas.'));
-    }
-  },
-});
+const fileFilter = (req, file, cb) => {
+  if (/jpeg|jpg|png|webp/.test(path.extname(file.originalname).toLowerCase())) {
+    cb(null, true);
+  } else {
+    cb(new Error('Apenas imagens JPEG, PNG ou WebP são aceitas.'));
+  }
+};
 
-router.post('/', auth(['participant']), upload.single('photo'), (req, res) => {
-  const existing = getPhotosByUser(req.user.id);
-  if (existing.length >= 3) {
+const upload = USE_S3
+  ? multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 }, fileFilter })
+  : multer({
+      storage: multer.diskStorage({
+        destination: path.join(__dirname, '../../uploads'),
+        filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`),
+      }),
+      limits: { fileSize: 10 * 1024 * 1024 },
+      fileFilter,
+    });
+
+router.post('/', auth(['participant']), upload.single('photo'), async (req, res) => {
+  if (getPhotosByUser(req.user.id).length >= 3) {
     return res.status(400).json({ message: 'Limite de 3 fotos atingido.' });
   }
-
   if (!req.file) {
     return res.status(400).json({ message: 'Nenhum arquivo enviado.' });
   }
 
-  const photo = createPhoto({
-    userId: req.user.id,
-    filename: req.file.filename,
-    originalName: req.file.originalname,
-  });
+  let filename, url;
 
+  if (USE_S3) {
+    const { uploadToS3 } = require('../lib/s3');
+    const result = await uploadToS3(req.file.buffer, req.file.originalname, 'photos');
+    filename = result.key;
+    url = result.url;
+  } else {
+    filename = req.file.filename;
+    url = `/uploads/${filename}`;
+  }
+
+  const photo = createPhoto({ userId: req.user.id, filename, originalName: req.file.originalname, url });
   res.status(201).json(photo);
 });
 

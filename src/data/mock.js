@@ -115,13 +115,13 @@ function getPhotosByUser(userId) {
   return photos.filter((p) => p.userId === userId);
 }
 
-function createPhoto({ userId, filename, originalName }) {
+function createPhoto({ userId, filename, originalName, url }) {
   const photo = {
     id: uuidv4(),
     userId,
     filename,
     originalName,
-    url: `/uploads/${filename}`,
+    url: url || `/uploads/${filename}`,
     createdAt: new Date().toISOString(),
   };
   photos.push(photo);
