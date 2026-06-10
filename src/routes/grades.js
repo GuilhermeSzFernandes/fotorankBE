@@ -15,6 +15,8 @@ router.post('/', auth(['teacher']), async (req, res) => {
 
   const photo = await findPhotoById(photoId);
   if (!photo) return res.status(404).json({ message: 'Foto não encontrada.' });
+  if (photo.userId === req.user.id)
+    return res.status(403).json({ message: 'Você não pode avaliar suas próprias fotos.' });
 
   const grade = await createOrUpdateGrade({ teacherId: req.user.id, photoId, score: Number(score), comment });
   res.status(201).json(grade);

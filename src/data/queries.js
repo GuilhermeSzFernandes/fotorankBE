@@ -219,6 +219,7 @@ async function getPhotosWithGrades(teacherId) {
      FROM photos p
      JOIN users u ON u.id = p.user_id
      LEFT JOIN grades g ON g.photo_id = p.id AND g.teacher_id = $1
+     WHERE p.user_id != $1
      ORDER BY p.created_at ASC`,
     [teacherId]
   );
