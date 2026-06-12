@@ -36,9 +36,22 @@ CREATE TABLE IF NOT EXISTS grades (
   score         NUMERIC(4,2)  NOT NULL CHECK (score >= 1 AND score <= 10),
   comment       TEXT          NOT NULL DEFAULT '',
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  UNIQUE (teacher_id, photo_id)
+  updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
+
+-- Remove duplicatas mantendo a nota mais recente por (professor, foto)
+DELETE FROM grades
+WHERE id NOT IN (
+  SELECT DISTINCT ON (teacher_id, photo_id) id
+  FROM grades
+  ORDER BY teacher_id, photo_id, updated_at DESC
+);
+
+-- Garante unicidade (idempotente: ignora se a constraint já existe)
+DO $$ BEGIN
+  ALTER TABLE grades ADD CONSTRAINT grades_teacher_photo_unique UNIQUE (teacher_id, photo_id);
+EXCEPTION WHEN duplicate_table THEN NULL;
+END $$;
 
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   token         TEXT          PRIMARY KEY,

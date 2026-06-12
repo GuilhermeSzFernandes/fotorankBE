@@ -13,8 +13,8 @@ router.get('/:id/profile', async (req, res) => {
 
   const photosRes = await pool.query(
     `SELECT p.id, p.url, p.original_name AS "originalName", p.created_at AS "createdAt",
-            COUNT(g.id)::int                AS "gradeCount",
-            ROUND(AVG(g.score)::numeric, 1) AS "avgScore",
+            COUNT(DISTINCT g.teacher_id)::int AS "gradeCount",
+            ROUND(AVG(g.score)::numeric, 1)   AS "avgScore",
             COALESCE(
               json_agg(
                 jsonb_build_object('score', g.score, 'comment', g.comment)

@@ -17,8 +17,8 @@ router.get('/photos', auth(['admin']), async (req, res) => {
   const { rows } = await pool.query(
     `SELECT p.id, p.original_name AS "originalName", p.url, p.created_at AS "createdAt",
             u.name AS "ownerName", u.id AS "ownerId",
-            COUNT(g.id)::int AS "gradeCount",
-            ROUND(AVG(g.score)::numeric, 1) AS "avgScore"
+            COUNT(DISTINCT g.teacher_id)::int   AS "gradeCount",
+            ROUND(AVG(g.score)::numeric, 1)     AS "avgScore"
      FROM photos p
      JOIN users u ON u.id = p.user_id
      LEFT JOIN grades g ON g.photo_id = p.id

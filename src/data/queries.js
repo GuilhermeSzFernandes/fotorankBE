@@ -135,8 +135,8 @@ async function consumeResetToken(token, newPassword) {
 async function getPhotosByUser(userId) {
   const { rows } = await pool.query(
     `SELECT p.*,
-            COUNT(g.id)::int                AS grade_count,
-            ROUND(AVG(g.score)::numeric, 1) AS avg_score,
+            COUNT(DISTINCT g.teacher_id)::int AS grade_count,
+            ROUND(AVG(g.score)::numeric, 1)   AS avg_score,
             COALESCE(
               json_agg(
                 jsonb_build_object('score', g.score, 'comment', g.comment)
@@ -253,7 +253,7 @@ async function getRanking() {
     `SELECT
        u.id AS "userId", u.name, u.avatar,
        COUNT(DISTINCT p.id)::int                                              AS "photoCount",
-       COUNT(g.id)::int                                                       AS "gradeCount",
+       COUNT(DISTINCT g.teacher_id)::int                                      AS "gradeCount",
        ROUND(AVG(g.score)::numeric, 2)                                        AS "avgScore",
        COALESCE(
          json_agg(
@@ -285,11 +285,11 @@ async function getMetrics() {
        (SELECT COUNT(*)::int FROM users WHERE role = 'participant')        AS "totalParticipants",
        (SELECT COUNT(*)::int FROM users WHERE role = 'teacher')            AS "totalTeachers",
        (SELECT COUNT(*)::int FROM photos)                                  AS "totalPhotos",
-       (SELECT COUNT(*)::int FROM grades)                                  AS "totalGrades",
+       (SELECT COUNT(*)::int FROM (SELECT DISTINCT teacher_id, photo_id FROM grades) _g) AS "totalGrades",
        (SELECT COUNT(DISTINCT photo_id)::int FROM grades)                  AS "gradedPhotos",
-       (SELECT (COUNT(*)::int - COUNT(DISTINCT photo_id)::int) FROM grades
-          CROSS JOIN (SELECT COUNT(*)::int AS total FROM photos) t)        AS "ungradedPhotos",
-       (SELECT ROUND(AVG(score)::numeric, 2) FROM grades)                  AS "avgGrade"`
+       (SELECT ROUND(AVG(score)::numeric, 2)
+          FROM (SELECT DISTINCT ON (teacher_id, photo_id) score
+                FROM grades ORDER BY teacher_id, photo_id, updated_at DESC) sub) AS "avgGrade"`
   );
   const m = rows[0];
   return {
