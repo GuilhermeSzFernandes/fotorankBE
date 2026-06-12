@@ -2,12 +2,17 @@ const router = require('express').Router();
 const auth = require('../middleware/auth');
 const { getPhotosWithGrades, createOrUpdateGrade, deleteGrade, findPhotoById } = require('../data/queries');
 const { audit } = require('../lib/audit');
+const { getCurrentPhase } = require('../lib/contestPhase');
 
 router.get('/', auth(['teacher', 'admin']), async (req, res) => {
   res.json(await getPhotosWithGrades(req.user.id));
 });
 
 router.post('/', auth(['teacher']), async (req, res) => {
+  const phase = await getCurrentPhase();
+  if (phase !== 'evaluation')
+    return res.status(403).json({ message: 'Avaliação só é permitida durante o período de avaliação.' });
+
   const { photoId, score, comment } = req.body;
   if (!photoId || score === undefined)
     return res.status(400).json({ message: 'photoId e score são obrigatórios.' });
@@ -34,6 +39,10 @@ router.post('/', auth(['teacher']), async (req, res) => {
 });
 
 router.delete('/:photoId', auth(['teacher']), async (req, res) => {
+  const phase = await getCurrentPhase();
+  if (phase !== 'evaluation')
+    return res.status(403).json({ message: 'Avaliação só é permitida durante o período de avaliação.' });
+
   const removed = await deleteGrade(req.user.id, req.params.photoId);
   if (!removed) return res.status(404).json({ message: 'Avaliação não encontrada.' });
   await audit('grade.delete', { actorId: req.user.id, photoId: req.params.photoId });

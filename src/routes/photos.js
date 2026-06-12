@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const auth = require('../middleware/auth');
 const { getPhotosByUser, createPhoto, getAllPhotos, deletePhoto, findPhotoById } = require('../data/queries');
 const { audit } = require('../lib/audit');
+const { getCurrentPhase } = require('../lib/contestPhase');
 
 const USE_S3 = process.env.USE_S3 === 'true';
 
@@ -34,6 +35,10 @@ const upload = USE_S3
     });
 
 router.post('/', auth(['participant']), upload.single('photo'), async (req, res) => {
+  const phase = await getCurrentPhase();
+  if (phase !== 'registration')
+    return res.status(403).json({ message: 'Envio de fotos só é permitido durante o período de inscrição.' });
+
   if ((await getPhotosByUser(req.user.id)).length >= 3)
     return res.status(400).json({ message: 'Limite de 3 fotos atingido.' });
   if (!req.file)
@@ -74,6 +79,10 @@ router.get('/my', auth(['participant']), async (req, res) => {
 });
 
 router.delete('/:id', auth(['participant']), async (req, res) => {
+  const phase = await getCurrentPhase();
+  if (phase !== 'registration')
+    return res.status(403).json({ message: 'Remoção de fotos só é permitida durante o período de inscrição.' });
+
   const existing = await findPhotoById(req.params.id);
   if (!existing || existing.userId !== req.user.id)
     return res.status(404).json({ message: 'Foto não encontrada.' });

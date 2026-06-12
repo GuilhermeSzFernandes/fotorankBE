@@ -58,3 +58,16 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS audit_logs_photo_id_idx ON audit_logs(photo_id);
 CREATE INDEX IF NOT EXISTS audit_logs_actor_id_idx ON audit_logs(actor_id);
 CREATE INDEX IF NOT EXISTS audit_logs_event_idx    ON audit_logs(event);
+
+-- Configuração única do concurso (sempre id=1)
+CREATE TABLE IF NOT EXISTS contest_config (
+  id                  INT           PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  registration_start  TIMESTAMPTZ,
+  registration_end    TIMESTAMPTZ,
+  evaluation_start    TIMESTAMPTZ,
+  evaluation_end      TIMESTAMPTZ,
+  phase_override      VARCHAR(20)   CHECK (phase_override IN ('waiting','registration','evaluation','closed')),
+  updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+
+INSERT INTO contest_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
