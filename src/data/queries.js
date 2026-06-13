@@ -248,6 +248,25 @@ async function getPhotosWithGrades(teacherId) {
 
 // ── Ranking ───────────────────────────────────────────────────────────────────
 
+async function getRankingByPhoto() {
+  const { rows } = await pool.query(
+    `SELECT
+       p.id AS "photoId", p.url, p.original_name AS "originalName", p.created_at AS "createdAt",
+       u.id AS "userId", u.name, u.avatar,
+       COUNT(DISTINCT g.teacher_id)::int      AS "gradeCount",
+       ROUND(AVG(g.score)::numeric, 2)        AS "avgScore"
+     FROM photos p
+     JOIN users u ON u.id = p.user_id
+     LEFT JOIN grades g ON g.photo_id = p.id
+     GROUP BY p.id, p.url, p.original_name, p.created_at, u.id, u.name, u.avatar
+     ORDER BY "avgScore" DESC NULLS LAST, p.created_at ASC`
+  );
+  return rows.map((r) => ({
+    ...r,
+    avgScore: r.avgScore !== null ? parseFloat(r.avgScore) : null,
+  }));
+}
+
 async function getRanking() {
   const { rows } = await pool.query(
     `SELECT
@@ -320,6 +339,7 @@ module.exports = {
   deleteGrade,
   createOrUpdateGrade,
   getPhotosWithGrades,
+  getRankingByPhoto,
   getRanking,
   getMetrics,
 };
