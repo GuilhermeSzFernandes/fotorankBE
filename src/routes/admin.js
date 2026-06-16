@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const auth = require('../middleware/auth');
-const { getAllUsers, createUser, deleteUser, findUserByEmail, findUserById, updateUserRole, getMetrics } = require('../data/queries');
+const { getAllUsers, createUser, deleteUser, findUserByEmail, findUserById, updateUserRole, getMetrics, getPhotoGrades } = require('../data/queries');
 const { audit } = require('../lib/audit');
 
 router.get('/metrics', auth(['admin']), async (req, res) => {
@@ -26,6 +26,11 @@ router.get('/photos', auth(['admin']), async (req, res) => {
      ORDER BY p.created_at DESC`
   );
   res.json(rows.map((r) => ({ ...r, avgScore: r.avgScore !== null ? parseFloat(r.avgScore) : null })));
+});
+
+router.get('/photos/:id/grades', auth(['admin']), async (req, res) => {
+  const grades = await getPhotoGrades(req.params.id);
+  res.json(grades);
 });
 
 router.get('/teachers', auth(['admin']), async (req, res) => {

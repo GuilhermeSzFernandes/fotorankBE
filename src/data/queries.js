@@ -296,6 +296,17 @@ async function getRanking() {
   }));
 }
 
+async function getPhotoGrades(photoId) {
+  const { rows } = await pool.query(
+    `SELECT g.score, g.comment, g.updated_at AS "updatedAt"
+     FROM grades g
+     WHERE g.photo_id = $1
+     ORDER BY g.score DESC, g.updated_at ASC`,
+    [photoId]
+  );
+  return rows.map((r) => ({ ...r, score: parseFloat(r.score) }));
+}
+
 // ── Metrics ───────────────────────────────────────────────────────────────────
 
 async function getMetrics() {
@@ -341,5 +352,6 @@ module.exports = {
   getPhotosWithGrades,
   getRankingByPhoto,
   getRanking,
+  getPhotoGrades,
   getMetrics,
 };
