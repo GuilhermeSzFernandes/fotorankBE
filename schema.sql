@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS users (
   etec          VARCHAR(255),
   student_type  VARCHAR(50),
   cpf           VARCHAR(14)   UNIQUE,         -- obrigatório para participantes (enforced na app)
+  phone         VARCHAR(20),
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
@@ -80,7 +81,19 @@ CREATE TABLE IF NOT EXISTS contest_config (
   evaluation_start    TIMESTAMPTZ,
   evaluation_end      TIMESTAMPTZ,
   phase_override      VARCHAR(20)   CHECK (phase_override IN ('waiting','registration','evaluation','closed')),
+  ranking_public      BOOLEAN       NOT NULL DEFAULT FALSE,
   updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
+
+-- Migrações idempotentes para bases existentes
+DO $$ BEGIN
+  ALTER TABLE contest_config ADD COLUMN ranking_public BOOLEAN NOT NULL DEFAULT FALSE;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE users ADD COLUMN phone VARCHAR(20);
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
 
 INSERT INTO contest_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;

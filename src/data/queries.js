@@ -16,6 +16,7 @@ function mapUser(row) {
     etec:        row.etec,
     studentType: row.student_type,
     cpf:         row.cpf,
+    phone:       row.phone,
     createdAt:   row.created_at,
   };
 }
@@ -44,12 +45,12 @@ async function findUserById(id) {
   return mapUser(rows[0]);
 }
 
-async function createUser({ name, email, password, role = 'participant', etec = null, studentType = null, cpf = null }) {
+async function createUser({ name, email, password, role = 'participant', etec = null, studentType = null, cpf = null, phone = null }) {
   const hash = await bcrypt.hash(password, 10);
   const { rows } = await pool.query(
-    `INSERT INTO users (name, email, password_hash, role, etec, student_type, cpf)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [name, email, hash, role, etec, studentType, cpf]
+    `INSERT INTO users (name, email, password_hash, role, etec, student_type, cpf, phone)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [name, email, hash, role, etec, studentType, cpf, phone]
   );
   return mapUser(rows[0]);
 }

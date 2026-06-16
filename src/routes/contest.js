@@ -17,15 +17,16 @@ router.get('/config', async (req, res) => {
   res.json({ config: config ?? {}, phase, phaseLabel: PHASE_LABEL[phase] });
 });
 
-// Atualiza datas (admin)
+// Atualiza datas e configurações (admin)
 router.put('/config', auth(['admin']), async (req, res) => {
-  const { registration_start, registration_end, evaluation_start, evaluation_end } = req.body;
+  const { registration_start, registration_end, evaluation_start, evaluation_end, ranking_public } = req.body;
   const { rows } = await pool.query(
     `UPDATE contest_config
      SET registration_start = $1,
          registration_end   = $2,
          evaluation_start   = $3,
          evaluation_end     = $4,
+         ranking_public     = $5,
          updated_at         = NOW()
      WHERE id = 1
      RETURNING *`,
@@ -34,6 +35,7 @@ router.put('/config', auth(['admin']), async (req, res) => {
       registration_end   || null,
       evaluation_start   || null,
       evaluation_end     || null,
+      ranking_public ?? false,
     ]
   );
   const config = rows[0];

@@ -28,15 +28,15 @@ function signToken(user) {
 
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, etec, studentType, cpf } = req.body;
-    if (!name || !email || !password || !cpf)
+    const { name, email, password, etec, studentType, cpf, phone } = req.body;
+    if (!name || !email || !password || !cpf || !phone)
       return res.status(400).json({ message: 'Preencha todos os campos obrigatórios.' });
     if (password.length < 6)
       return res.status(400).json({ message: 'Senha deve ter ao menos 6 caracteres.' });
     if (await findUserByEmail(email))
       return res.status(409).json({ message: 'E-mail já cadastrado.' });
 
-    const user = await createUser({ name, email, password, role: 'participant', etec: etec || null, studentType: studentType || null, cpf });
+    const user = await createUser({ name, email, password, role: 'participant', etec: etec || null, studentType: studentType || null, cpf, phone: phone.trim() });
     const token = signToken(user);
     const safeUser = { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar };
     res.cookie('token', token, COOKIE_OPTIONS).status(201).json({ user: safeUser });

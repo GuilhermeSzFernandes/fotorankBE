@@ -87,11 +87,6 @@ router.delete('/:id', auth(['participant']), async (req, res) => {
   if (!existing || existing.userId !== req.user.id)
     return res.status(404).json({ message: 'Foto não encontrada.' });
 
-  const { pool } = require('../lib/db');
-  const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM grades WHERE photo_id = $1', [req.params.id]);
-  if (rows[0].n > 0)
-    return res.status(403).json({ message: 'Esta foto já foi avaliada e não pode ser removida.' });
-
   const photo = await deletePhoto(req.params.id, req.user.id);
 
   if (USE_S3) {
