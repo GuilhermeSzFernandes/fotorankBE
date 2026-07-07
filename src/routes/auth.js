@@ -11,6 +11,22 @@ const {
   validateResetToken,
 } = require('../data/queries');
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidCPF(cpf) {
+  const digits = String(cpf).replace(/\D/g, '');
+  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+
+  const calcCheck = (len) => {
+    let sum = 0;
+    for (let i = 0; i < len; i++) sum += Number(digits[i]) * (len + 1 - i);
+    const rest = (sum * 10) % 11;
+    return rest === 10 ? 0 : rest;
+  };
+
+  return calcCheck(9) === Number(digits[9]) && calcCheck(10) === Number(digits[10]);
+}
+
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
@@ -31,8 +47,14 @@ router.post('/register', async (req, res) => {
     const { name, email, password, etec, studentType, cpf, phone } = req.body;
     if (!name || !email || !password || !cpf || !phone)
       return res.status(400).json({ message: 'Preencha todos os campos obrigatórios.' });
+    if (!EMAIL_RE.test(email.trim()))
+      return res.status(400).json({ message: 'Informe um e-mail válido.' });
     if (password.length < 6)
       return res.status(400).json({ message: 'Senha deve ter ao menos 6 caracteres.' });
+    if (!isValidCPF(cpf))
+      return res.status(400).json({ message: 'Informe um CPF válido.' });
+    if (phone.replace(/\D/g, '').length < 10)
+      return res.status(400).json({ message: 'Informe um telefone válido.' });
     if (await findUserByEmail(email))
       return res.status(409).json({ message: 'E-mail já cadastrado.' });
 
