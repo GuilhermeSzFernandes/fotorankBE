@@ -1,32 +1,36 @@
-const nodemailer = require('nodemailer');
+// Envio de e-mail via API HTTP da Brevo (HTTPS/443).
+// Usamos a API REST em vez de SMTP porque hosts como o Render (plano free)
+// bloqueiam a saída nas portas SMTP (25/465/587). HTTPS não é bloqueado.
 
-let cachedTransport = null;
+const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
+const FROM_NAME_DEFAULT = 'FotoRank';
+const REQUEST_TIMEOUT_MS = 15000;
 
-// Cria (e reaproveita) o transporter SMTP a partir das variáveis de ambiente.
-// Lança erro se o SMTP não estiver configurado — o envio de e-mail é obrigatório.
-function getTransport() {
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS } = process.env;
-  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS) {
-    throw new Error(
-      'SMTP não configurado. Defina SMTP_HOST, SMTP_PORT, SMTP_USER e SMTP_PASS.'
-    );
+// Resolve o remetente { name, email }.
+// Prefere EMAIL_FROM/EMAIL_FROM_NAME; se ausentes, tenta extrair de SMTP_FROM
+// nos formatos "Nome <email>" ou apenas "email".
+function resolveSender() {
+  if (process.env.EMAIL_FROM) {
+    return { name: process.env.EMAIL_FROM_NAME || FROM_NAME_DEFAULT, email: process.env.EMAIL_FROM.trim() };
   }
-  if (!cachedTransport) {
-    cachedTransport = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT),
-      secure: process.env.SMTP_SECURE === 'true', // true para porta 465, false para 587/STARTTLS
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-    });
-  }
-  return cachedTransport;
+  const raw = (process.env.SMTP_FROM || '').trim();
+  const match = raw.match(/^"?([^"<]*?)"?\s*<([^>]+)>$/);
+  if (match) return { name: match[1].trim() || FROM_NAME_DEFAULT, email: match[2].trim() };
+  if (raw) return { name: FROM_NAME_DEFAULT, email: raw };
+  return null;
 }
 
 async function sendPasswordResetEmail(email, resetUrl) {
-  const transport = getTransport();
-  const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    throw new Error('BREVO_API_KEY não configurada.');
+  }
+  const sender = resolveSender();
+  if (!sender) {
+    throw new Error('Remetente não configurado. Defina EMAIL_FROM (ou SMTP_FROM).');
+  }
 
-  const text = [
+  const textContent = [
     'Você solicitou a redefinição da sua senha no FotoRank.',
     '',
     'Acesse o link abaixo para criar uma nova senha:',
@@ -36,7 +40,7 @@ async function sendPasswordResetEmail(email, resetUrl) {
     'Se você não solicitou a recuperação, ignore este e-mail.',
   ].join('\n');
 
-  const html = `
+  const htmlContent = `
   <div style="font-family:Arial,Helvetica,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#1a1a1a">
     <h1 style="font-size:20px;margin:0 0 16px">Recuperação de senha</h1>
     <p style="font-size:14px;line-height:1.6;margin:0 0 16px">
@@ -58,13 +62,38 @@ async function sendPasswordResetEmail(email, resetUrl) {
     </p>
   </div>`;
 
-  await transport.sendMail({
-    from,
-    to: email,
-    subject: 'Recuperação de senha — FotoRank',
-    text,
-    html,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  let res;
+  try {
+    res = await fetch(BREVO_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        accept: 'application/json',
+      },
+      body: JSON.stringify({
+        sender,
+        to: [{ email }],
+        subject: 'Recuperação de senha — FotoRank',
+        htmlContent,
+        textContent,
+      }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    const reason = err.name === 'AbortError' ? 'tempo limite excedido' : err.message;
+    throw new Error(`Falha de rede ao chamar a API da Brevo: ${reason}`);
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Brevo API respondeu ${res.status}: ${body}`);
+  }
 }
 
 module.exports = { sendPasswordResetEmail };
