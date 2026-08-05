@@ -44,9 +44,11 @@ function signToken(user) {
 
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, password, etec, studentType, cpf, phone } = req.body;
+    const { name, email, password, etec, studentType, cpf, phone, imageRightsConsent } = req.body;
     if (!name || !email || !password || !cpf || !phone)
       return res.status(400).json({ message: 'Preencha todos os campos obrigatórios.' });
+    if (imageRightsConsent !== true)
+      return res.status(400).json({ message: 'É necessário aceitar a cessão dos direitos de uso de imagem.' });
     if (!EMAIL_RE.test(email.trim()))
       return res.status(400).json({ message: 'Informe um e-mail válido.' });
     if (password.length < 6)
@@ -58,7 +60,7 @@ router.post('/register', async (req, res) => {
     if (await findUserByEmail(email))
       return res.status(409).json({ message: 'E-mail já cadastrado.' });
 
-    const user = await createUser({ name, email, password, role: 'participant', etec: etec || null, studentType: studentType || null, cpf, phone: phone.trim() });
+    const user = await createUser({ name, email, password, role: 'participant', etec: etec || null, studentType: studentType || null, cpf, phone: phone.trim(), imageRightsConsent: true });
     const token = signToken(user);
     const safeUser = { id: user.id, name: user.name, email: user.email, role: user.role, avatar: user.avatar };
     res.cookie('token', token, COOKIE_OPTIONS).status(201).json({ user: safeUser });

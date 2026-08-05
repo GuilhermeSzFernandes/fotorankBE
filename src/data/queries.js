@@ -17,6 +17,7 @@ function mapUser(row) {
     studentType: row.student_type,
     cpf:         row.cpf,
     phone:       row.phone,
+    imageRightsConsentAt: row.image_rights_consent_at,
     createdAt:   row.created_at,
   };
 }
@@ -29,6 +30,9 @@ function mapPhoto(row) {
     filename:     row.filename,
     originalName: row.original_name,
     url:          row.url,
+    location:     row.location,
+    equipment:    row.equipment,
+    description:  row.description,
     createdAt:    row.created_at,
   };
 }
@@ -45,12 +49,12 @@ async function findUserById(id) {
   return mapUser(rows[0]);
 }
 
-async function createUser({ name, email, password, role = 'participant', etec = null, studentType = null, cpf = null, phone = null }) {
+async function createUser({ name, email, password, role = 'participant', etec = null, studentType = null, cpf = null, phone = null, imageRightsConsent = false }) {
   const hash = await bcrypt.hash(password, 10);
   const { rows } = await pool.query(
-    `INSERT INTO users (name, email, password_hash, role, etec, student_type, cpf, phone)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-    [name, email, hash, role, etec, studentType, cpf, phone]
+    `INSERT INTO users (name, email, password_hash, role, etec, student_type, cpf, phone, image_rights_consent_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CASE WHEN $9 THEN NOW() ELSE NULL END) RETURNING *`,
+    [name, email, hash, role, etec, studentType, cpf, phone, imageRightsConsent]
   );
   return mapUser(rows[0]);
 }
@@ -170,11 +174,11 @@ async function findPhotoById(id) {
   return mapPhoto(rows[0]);
 }
 
-async function createPhoto({ userId, filename, originalName, url }) {
+async function createPhoto({ userId, filename, originalName, url, location = null, equipment = null, description = null }) {
   const { rows } = await pool.query(
-    `INSERT INTO photos (user_id, filename, original_name, url)
-     VALUES ($1, $2, $3, $4) RETURNING *`,
-    [userId, filename, originalName, url]
+    `INSERT INTO photos (user_id, filename, original_name, url, location, equipment, description)
+     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+    [userId, filename, originalName, url, location, equipment, description]
   );
   return mapPhoto(rows[0]);
 }
@@ -222,7 +226,7 @@ async function getPhotosWithGrades(teacherId) {
   const { rows } = await pool.query(
     `SELECT
        p.id, p.user_id AS "userId", p.filename, p.original_name AS "originalName",
-       p.url, p.created_at AS "createdAt",
+       p.url, p.location, p.equipment, p.description, p.created_at AS "createdAt",
        u.name AS "ownerName", u.avatar AS "ownerAvatar",
        g.id AS "gradeId", g.score, g.comment, g.created_at AS "gradeCreatedAt"
      FROM photos p
@@ -238,6 +242,9 @@ async function getPhotosWithGrades(teacherId) {
     filename:     r.filename,
     originalName: r.originalName,
     url:          r.url,
+    location:     r.location,
+    equipment:    r.equipment,
+    description:  r.description,
     createdAt:    r.createdAt,
     ownerName:    r.ownerName,
     ownerAvatar:  r.ownerAvatar,

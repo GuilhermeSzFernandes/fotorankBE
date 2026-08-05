@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS users (
   student_type  VARCHAR(50),
   cpf           VARCHAR(14)   UNIQUE,         -- obrigatório para participantes (enforced na app)
   phone         VARCHAR(20),
+  image_rights_consent_at TIMESTAMPTZ,        -- quando o participante cedeu os direitos de imagem (NULL = não consentiu)
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
@@ -27,6 +28,9 @@ CREATE TABLE IF NOT EXISTS photos (
   filename      TEXT          NOT NULL,
   original_name TEXT          NOT NULL,
   url           TEXT          NOT NULL,
+  location      TEXT,
+  equipment     TEXT,
+  description   TEXT,
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
@@ -93,6 +97,26 @@ END $$;
 
 DO $$ BEGIN
   ALTER TABLE users ADD COLUMN phone VARCHAR(20);
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE users ADD COLUMN image_rights_consent_at TIMESTAMPTZ;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE photos ADD COLUMN location TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE photos ADD COLUMN equipment TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE photos ADD COLUMN description TEXT;
 EXCEPTION WHEN duplicate_column THEN NULL;
 END $$;
 

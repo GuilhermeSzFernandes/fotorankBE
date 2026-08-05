@@ -37,7 +37,7 @@ function findUserById(id) {
   return users.find((u) => u.id === id);
 }
 
-function createUser({ name, email, password, role = 'participant', etec = null, studentType = null, rm = null }) {
+function createUser({ name, email, password, role = 'participant', etec = null, studentType = null, rm = null, imageRightsConsent = false }) {
   const user = {
     id: uuidv4(),
     name,
@@ -48,6 +48,7 @@ function createUser({ name, email, password, role = 'participant', etec = null, 
     etec,
     studentType,
     rm,
+    imageRightsConsentAt: imageRightsConsent ? new Date().toISOString() : null,
     createdAt: new Date().toISOString(),
   };
   users.push(user);
@@ -115,13 +116,16 @@ function getPhotosByUser(userId) {
   return photos.filter((p) => p.userId === userId);
 }
 
-function createPhoto({ userId, filename, originalName, url }) {
+function createPhoto({ userId, filename, originalName, url, location = null, equipment = null, description = null }) {
   const photo = {
     id: uuidv4(),
     userId,
     filename,
     originalName,
     url: url || `/uploads/${filename}`,
+    location,
+    equipment,
+    description,
     createdAt: new Date().toISOString(),
   };
   photos.push(photo);

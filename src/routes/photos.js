@@ -10,10 +10,10 @@ const { getCurrentPhase } = require('../lib/contestPhase');
 const USE_S3 = process.env.USE_S3 === 'true';
 
 const fileFilter = (req, file, cb) => {
-  if (/jpeg|jpg|png|webp/.test(path.extname(file.originalname).toLowerCase())) {
+  if (/jpe?g|png/.test(path.extname(file.originalname).toLowerCase())) {
     cb(null, true);
   } else {
-    cb(new Error('Apenas imagens JPEG, PNG ou WebP são aceitas.'));
+    cb(new Error('Apenas imagens JPG ou PNG são aceitas.'));
   }
 };
 
@@ -22,6 +22,13 @@ const { imageSize } = require('image-size');
 const MAX_BYTES = 30 * 1024 * 1024;
 const MIN_W = 800;
 const MIN_H = 600;
+
+// Normaliza campo de texto opcional: trim, vazio vira null, trunca no limite.
+const cleanText = (value, max) => {
+  const trimmed = (value ?? '').trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, max);
+};
 
 const upload = USE_S3
   ? multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_BYTES }, fileFilter })
@@ -69,7 +76,11 @@ router.post('/', auth(['participant']), upload.single('photo'), async (req, res)
     url = `/uploads/${filename}`;
   }
 
-  const photo = await createPhoto({ userId: req.user.id, filename, originalName: req.file.originalname, url });
+  const location    = cleanText(req.body.location, 120);
+  const equipment   = cleanText(req.body.equipment, 120);
+  const description = cleanText(req.body.description, 500);
+
+  const photo = await createPhoto({ userId: req.user.id, filename, originalName: req.file.originalname, url, location, equipment, description });
   await audit('photo.upload', { actorId: req.user.id, photoId: photo.id, metadata: { originalName: req.file.originalname, url } });
   res.status(201).json(photo);
 });

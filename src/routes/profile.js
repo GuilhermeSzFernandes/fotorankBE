@@ -9,10 +9,10 @@ const { findUserById, updateUserProfile, updateUserAvatar, changeUserPassword } 
 const USE_S3 = process.env.USE_S3 === 'true';
 
 const fileFilter = (req, file, cb) => {
-  if (/jpeg|jpg|png|webp/.test(path.extname(file.originalname).toLowerCase()))
+  if (/jpe?g|png/.test(path.extname(file.originalname).toLowerCase()))
     cb(null, true);
   else
-    cb(new Error('Apenas JPEG, PNG ou WebP são aceitos.'));
+    cb(new Error('Apenas JPG ou PNG são aceitos.'));
 };
 
 let upload;
