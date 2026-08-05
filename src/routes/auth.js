@@ -2,6 +2,7 @@ const router = require('express').Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const authMiddleware = require('../middleware/auth');
+const { sendPasswordResetEmail } = require('../lib/mailer');
 const {
   findUserByEmail,
   findUserById,
@@ -99,10 +100,26 @@ router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ message: 'E-mail é obrigatório.' });
 
-  const token = await createResetToken(email);
-  if (!token) return res.json({ message: 'Se este e-mail existir, um link foi gerado.' });
+  // Mensagem genérica idêntica para e-mail existente ou não (evita enumeração de contas).
+  const genericMessage = 'Se este e-mail existir, enviamos um link de recuperação.';
 
-  res.json({ message: 'Link de recuperação gerado.', resetToken: token, resetUrl: `/reset-password?token=${token}` });
+  const token = await createResetToken(email);
+  if (!token) return res.json({ message: genericMessage });
+
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173')
+    .split(',')[0]
+    .trim()
+    .replace(/\/$/, '');
+  const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+
+  try {
+    await sendPasswordResetEmail(email, resetUrl);
+  } catch (err) {
+    console.error('Falha ao enviar e-mail de recuperação:', err.message);
+    return res.status(500).json({ message: 'Não foi possível enviar o e-mail de recuperação. Tente novamente mais tarde.' });
+  }
+
+  res.json({ message: genericMessage });
 });
 
 router.get('/reset-password/validate', async (req, res) => {

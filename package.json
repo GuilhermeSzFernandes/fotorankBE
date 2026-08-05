@@ -16,6 +16,7 @@
     "image-size": "^2.0.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1",
+    "nodemailer": "^9.0.4",
     "pg": "^8.21.0",
     "uuid": "^9.0.1"
   },
