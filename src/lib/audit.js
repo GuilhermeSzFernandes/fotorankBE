@@ -8,7 +8,6 @@ async function audit(event, { actorId = null, photoId = null, metadata = {} } = 
       [event, actorId ?? null, photoId ?? null, JSON.stringify(metadata)]
     );
   } catch (err) {
-    // Log nunca deve quebrar o fluxo principal
     console.error('[audit] falha ao registrar evento:', event, err.message);
   }
 }

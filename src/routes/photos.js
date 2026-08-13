@@ -23,7 +23,6 @@ const MAX_BYTES = 30 * 1024 * 1024;
 const MIN_W = 800;
 const MIN_H = 600;
 
-// Normaliza campo de texto opcional: trim, vazio vira null, trunca no limite.
 const cleanText = (value, max) => {
   const trimmed = (value ?? '').trim();
   if (!trimmed) return null;

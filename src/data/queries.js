@@ -2,7 +2,6 @@ const { pool } = require('../lib/db');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function mapUser(row) {
   if (!row) return null;
@@ -37,7 +36,6 @@ function mapPhoto(row) {
   };
 }
 
-// ── Users ─────────────────────────────────────────────────────────────────────
 
 async function findUserByEmail(email) {
   const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
@@ -102,7 +100,6 @@ async function getAllUsers() {
   return rows.map(mapUser);
 }
 
-// ── Password reset ────────────────────────────────────────────────────────────
 
 async function createResetToken(email) {
   const user = await findUserByEmail(email);
@@ -135,7 +132,6 @@ async function consumeResetToken(token, newPassword) {
   return true;
 }
 
-// ── Photos ────────────────────────────────────────────────────────────────────
 
 async function getPhotosByUser(userId) {
   const { rows } = await pool.query(
@@ -191,7 +187,6 @@ async function deletePhoto(id, userId) {
   return mapPhoto(rows[0]);
 }
 
-// ── Grades ────────────────────────────────────────────────────────────────────
 
 async function deleteGrade(teacherId, photoId) {
   const { rowCount } = await pool.query(
@@ -254,7 +249,6 @@ async function getPhotosWithGrades(teacherId) {
   }));
 }
 
-// ── Ranking ───────────────────────────────────────────────────────────────────
 
 async function getRankingByPhoto() {
   const { rows } = await pool.query(
@@ -315,7 +309,6 @@ async function getPhotoGrades(photoId) {
   return rows.map((r) => ({ ...r, score: parseFloat(r.score) }));
 }
 
-// ── Metrics ───────────────────────────────────────────────────────────────────
 
 async function getMetrics() {
   const { rows } = await pool.query(

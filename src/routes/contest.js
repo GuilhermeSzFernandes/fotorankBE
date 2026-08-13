@@ -10,14 +10,12 @@ const PHASE_LABEL = {
   closed:       'Concurso encerrado',
 };
 
-// Retorna configuração + fase calculada (acesso público)
 router.get('/config', async (req, res) => {
   const config = await getContestConfig();
   const phase  = computePhase(config);
   res.json({ config: config ?? {}, phase, phaseLabel: PHASE_LABEL[phase] });
 });
 
-// Atualiza datas e configurações (admin)
 router.put('/config', auth(['admin']), async (req, res) => {
   const { registration_start, registration_end, evaluation_start, evaluation_end, ranking_public } = req.body;
   const { rows } = await pool.query(
@@ -43,7 +41,6 @@ router.put('/config', auth(['admin']), async (req, res) => {
   res.json({ config, phase, phaseLabel: PHASE_LABEL[phase] });
 });
 
-// Sobrescreve fase manualmente (admin)
 router.post('/phase', auth(['admin']), async (req, res) => {
   const { phase } = req.body;
   const valid = ['waiting', 'registration', 'evaluation', 'closed', null];

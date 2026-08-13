@@ -1,14 +1,8 @@
-// Envio de e-mail via API HTTP da Brevo (HTTPS/443).
-// Usamos a API REST em vez de SMTP porque hosts como o Render (plano free)
-// bloqueiam a saída nas portas SMTP (25/465/587). HTTPS não é bloqueado.
 
 const BREVO_ENDPOINT = 'https://api.brevo.com/v3/smtp/email';
 const FROM_NAME_DEFAULT = 'FotoRank';
 const REQUEST_TIMEOUT_MS = 15000;
 
-// Resolve o remetente { name, email }.
-// Prefere EMAIL_FROM/EMAIL_FROM_NAME; se ausentes, tenta extrair de SMTP_FROM
-// nos formatos "Nome <email>" ou apenas "email".
 function resolveSender() {
   if (process.env.EMAIL_FROM) {
     return { name: process.env.EMAIL_FROM_NAME || FROM_NAME_DEFAULT, email: process.env.EMAIL_FROM.trim() };
