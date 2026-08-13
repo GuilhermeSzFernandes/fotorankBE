@@ -15,7 +15,9 @@ const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173')
 app.use(cors({
   origin: (origin, cb) => {
     if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error('CORS não permitido para esta origem.'));
+    const err = new Error(`CORS não permitido para a origem: ${origin}`);
+    err.status = 403;
+    cb(err);
   },
   credentials: true,
 }));
@@ -35,7 +37,7 @@ app.use('/api/users',   require('./routes/users'));
 
 app.use((err, req, res, next) => {
   console.error(err.message);
-  res.status(500).json({ message: err.message || 'Erro interno do servidor.' });
+  res.status(err.status || 500).json({ message: err.message || 'Erro interno do servidor.' });
 });
 
 const PORT = process.env.PORT || 3001;
