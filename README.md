@@ -47,6 +47,7 @@ schema.sql        schema do banco (tabelas, tipos, constraints)
 | `AWS_S3_BUCKET`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Credenciais do S3 (quando `USE_S3=true`) |
 | `BREVO_API_KEY` | Chave da API da Brevo, para envio de e-mail |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` (ou `SMTP_FROM`) | Remetente do e-mail de recuperação de senha |
+| `SENTRY_DSN` | DSN do Sentry para captura de erros (opcional; usa um valor padrão se ausente) |
 
 ## Rodando localmente
 

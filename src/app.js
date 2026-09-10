@@ -1,5 +1,7 @@
-require('dotenv').config();
+require('./instrument');
+const Sentry = require('@sentry/node');
 const express = require('express');
+require('express-async-errors');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const path = require('path');
@@ -34,6 +36,15 @@ app.use('/api/admin',   require('./routes/admin'));
 app.use('/api/contest', require('./routes/contest'));
 app.use('/api/profile', require('./routes/profile'));
 app.use('/api/users',   require('./routes/users'));
+
+app.get('/debug-sentry', function mainHandler(req, res) {
+  Sentry.logger.info('User triggered test error', {
+    action: 'test_error_endpoint',
+  });
+  throw new Error('My first Sentry error!');
+});
+
+Sentry.setupExpressErrorHandler(app);
 
 app.use((err, req, res, next) => {
   console.error(err.message);
