@@ -112,7 +112,9 @@ router.delete('/:id', auth(['participant']), async (req, res) => {
   res.json({ message: 'Foto removida.' });
 });
 
-router.get('/', auth(['teacher', 'admin']), async (req, res) => {
+// Somente admin: a lista traz o userId do autor, que permitiria ao professor
+// descobrir o nome via /api/users/:id/profile (quebrando a avaliação cega).
+router.get('/', auth(['admin']), async (req, res) => {
   res.json(await getAllPhotos());
 });
 

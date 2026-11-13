@@ -17,7 +17,9 @@ async function checkRankingAccess(req, res, restrictedMsg) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    if (!['admin', 'teacher'].includes(payload.role)) {
+    // Professores não veem o ranking antes do encerramento: ele mostra nome + foto
+    // e quebraria a avaliação cega.
+    if (payload.role !== 'admin') {
       res.status(403).json({ message: restrictedMsg });
       return false;
     }
