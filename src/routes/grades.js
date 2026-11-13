@@ -1,11 +1,28 @@
 const router = require('express').Router();
+const crypto = require('crypto');
 const auth = require('../middleware/auth');
 const { getPhotosWithGrades, createOrUpdateGrade, deleteGrade, findPhotoById } = require('../data/queries');
 const { audit } = require('../lib/audit');
 const { getCurrentPhase } = require('../lib/contestPhase');
 
+// Avaliação cega: o professor não pode saber quem é o autor da foto.
+// Trocamos o userId por um identificador opaco (HMAC, estável e não reversível) e
+// o nome por um número sequencial ("Participante 7"), ordenado pela primeira foto enviada.
+function anonymizeForTeacher(photos) {
+  const numbers = new Map();
+  for (const p of photos) {
+    if (!numbers.has(p.userId)) numbers.set(p.userId, numbers.size + 1);
+  }
+  return photos.map(({ userId, ownerName, ownerAvatar, originalName, filename, ...rest }) => ({
+    ...rest,
+    participantId: crypto.createHmac('sha256', process.env.JWT_SECRET).update(String(userId)).digest('hex').slice(0, 16),
+    participantNumber: numbers.get(userId),
+  }));
+}
+
 router.get('/', auth(['teacher', 'admin']), async (req, res) => {
-  res.json(await getPhotosWithGrades(req.user.id));
+  const photos = await getPhotosWithGrades(req.user.id);
+  res.json(req.user.role === 'teacher' ? anonymizeForTeacher(photos) : photos);
 });
 
 router.post('/', auth(['teacher']), async (req, res) => {
